@@ -512,7 +512,7 @@ h2 {
 }
 
 .food-form {
-  grid-template-columns: 1fr 1fr 1.35fr 0.72fr 0.9fr 0.82fr 0.82fr 0.82fr;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .weight-form {
@@ -524,11 +524,21 @@ h2 {
 }
 
 .workout-form .primary-button,
-.weight-form .primary-button,
-.food-form .primary-button {
+.weight-form .primary-button {
   grid-column: 1 / -1;
   justify-self: start;
   min-width: 180px;
+}
+
+.food-name-field {
+  grid-column: span 2;
+}
+
+.food-form .primary-button {
+  align-self: end;
+  justify-self: stretch;
+  min-width: 0;
+  width: 100%;
 }
 
 .inline-form {
@@ -953,6 +963,10 @@ td:last-child {
   .weight-form .primary-button,
   .food-form .primary-button {
     width: 100%;
+  }
+
+  .food-name-field {
+    grid-column: auto;
   }
 
   .hero-band,

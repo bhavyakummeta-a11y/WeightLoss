@@ -414,7 +414,7 @@ function FoodView({ state, update, model }) {
         <form className="entry-form food-form" onSubmit={submit}>
           <Input label="Date" type="date" value={form.date} onChange={(date) => setForm({ ...form, date })} required />
           <Select label="Meal" value={form.meal} onChange={(meal) => setForm({ ...form, meal })} options={["Breakfast", "Lunch", "Dinner", "Snack"]} />
-          <label className="field">
+          <label className="field food-name-field">
             Food
             <input list="food-options" value={form.name} onChange={(event) => updateFoodName(event.target.value)} required placeholder="Chicken bowl" />
             <datalist id="food-options">{Object.keys(foodEstimates).map((food) => <option key={food} value={titleCase(food)} />)}</datalist>
