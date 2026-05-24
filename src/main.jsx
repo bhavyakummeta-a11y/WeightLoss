@@ -38,6 +38,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { exercises } from "./data/exercises";
 import { auth, db, firebaseReady, googleProvider } from "./firebase";
 import "./styles.css";
 
@@ -87,6 +88,15 @@ const views = [
   { id: "habits", label: "Habits", icon: CalendarCheck }
 ];
 
+const metTable = {
+  Strength: { Easy: 3.5, Moderate: 5, Hard: 6 },
+  Cardio: { Easy: 5, Moderate: 7, Hard: 9 },
+  Walking: { Easy: 2.8, Moderate: 3.8, Hard: 5 },
+  Yoga: { Easy: 2.5, Moderate: 3, Hard: 4 },
+  Sport: { Easy: 5, Moderate: 7, Hard: 10 },
+  Other: { Easy: 3, Moderate: 5, Hard: 7 }
+};
+
 function App() {
   const [activeView, setActiveView] = useState("dashboard");
   const [state, setState, authState] = usePersistentState();
@@ -105,7 +115,7 @@ function App() {
 
   return (
     <div className="app">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} settings={state.settings} update={update} />
+      <Sidebar activeView={activeView} setActiveView={setActiveView} settings={state.settings} update={update} model={model} />
       <main className="workspace">
         <header className="topbar">
           <div>
@@ -142,7 +152,7 @@ function App() {
   );
 }
 
-function Sidebar({ activeView, setActiveView, settings, update }) {
+function Sidebar({ activeView, setActiveView, settings, update, model }) {
   const unit = settings.weightUnit || "lb";
 
   return (
@@ -177,6 +187,14 @@ function Sidebar({ activeView, setActiveView, settings, update }) {
         <div>
           <strong>Steady pace</strong>
           <span>Small logs compound into visible direction.</span>
+        </div>
+      </div>
+
+      <div className="burn-card">
+        <Flame size={18} />
+        <div>
+          <span>Est. burned today</span>
+          <strong>{model.todayBurnEstimate == null ? "--" : `${model.todayBurnEstimate.toLocaleString()} kcal`}</strong>
         </div>
       </div>
 
@@ -454,22 +472,64 @@ function FoodView({ state, update, model }) {
 }
 
 function WorkoutView({ state, update, model }) {
-  const [form, setForm] = useState({ date: today, type: "Strength", duration: "", intensity: "Moderate", notes: "" });
+  const [form, setForm] = useState({ date: today, exerciseName: "", type: "Strength", duration: "", intensity: "Moderate", notes: "" });
+  const [exerciseQuery, setExerciseQuery] = useState("");
+  const exerciseResults = useMemo(() => {
+    const query = exerciseQuery.trim().toLowerCase();
+    if (query.length < 2) return [];
+    return exercises
+      .filter((exercise) => [
+        exercise.name,
+        exercise.category,
+        exercise.equipment,
+        exercise.level,
+        ...(exercise.primaryMuscles || [])
+      ].join(" ").toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [exerciseQuery]);
 
   function submit(event) {
     event.preventDefault();
     update((draft) => {
       draft.workouts.push({ id: id(), ...form, duration: Number(form.duration) });
     });
-    setForm({ date: today, type: "Strength", duration: "", intensity: "Moderate", notes: "" });
+    setForm({ date: today, exerciseName: "", type: "Strength", duration: "", intensity: "Moderate", notes: "" });
+    setExerciseQuery("");
+  }
+
+  function selectExercise(exercise) {
+    const muscles = (exercise.primaryMuscles || []).join(", ");
+    setForm({
+      ...form,
+      exerciseName: exercise.name,
+      type: titleCase(exercise.category || "strength"),
+      notes: form.notes || [exercise.equipment, muscles].filter(Boolean).join(" · ")
+    });
+    setExerciseQuery(exercise.name);
   }
 
   return (
     <div className="view-grid">
+      <section className="panel wide">
+        <PanelHeader title="Exercise picker" detail="Search the local exercise database and tap one to fill your workout" />
+        <Input label="Search exercise" value={exerciseQuery} onChange={setExerciseQuery} placeholder="Bench press, squat, yoga, treadmill..." />
+        {exerciseQuery.trim().length >= 2 && (
+          <div className="exercise-results">
+            {exerciseResults.length ? exerciseResults.map((exercise) => (
+              <button className="exercise-result" key={exercise.id} type="button" onClick={() => selectExercise(exercise)}>
+                <strong>{exercise.name}</strong>
+                <span>{[titleCase(exercise.category || "exercise"), exercise.equipment, exercise.level, (exercise.primaryMuscles || []).join(", ")].filter(Boolean).join(" · ")}</span>
+              </button>
+            )) : <p className="search-empty">No exercises found.</p>}
+          </div>
+        )}
+      </section>
+
       <section className="panel form-panel wide">
         <PanelHeader title="Log workout" detail="Capture training volume without friction" />
         <form className="entry-form workout-form" onSubmit={submit}>
           <Input label="Date" type="date" value={form.date} onChange={(date) => setForm({ ...form, date })} required />
+          <Input label="Exercise" value={form.exerciseName} onChange={(exerciseName) => setForm({ ...form, exerciseName })} placeholder="Selected exercise" />
           <Select label="Type" value={form.type} onChange={(type) => setForm({ ...form, type })} options={["Strength", "Cardio", "Walking", "Yoga", "Sport", "Other"]} />
           <Input label="Duration" type="number" value={form.duration} onChange={(duration) => setForm({ ...form, duration })} suffix="min" required />
           <Select label="Intensity" value={form.intensity} onChange={(intensity) => setForm({ ...form, intensity })} options={["Easy", "Moderate", "Hard"]} />
@@ -494,9 +554,10 @@ function WorkoutView({ state, update, model }) {
 
       <DataTable
         title="Workout history"
-        columns={["Date", "Type", "Minutes", "Intensity", "Notes", ""]}
+        columns={["Date", "Exercise", "Type", "Minutes", "Intensity", "Notes", ""]}
         rows={sortByDate(state.workouts).map((entry) => [
           formatDate(entry.date),
+          entry.exerciseName || "-",
           entry.type,
           entry.duration,
           entry.intensity,
@@ -801,6 +862,9 @@ function buildModel(state) {
   const change = firstWeight && currentWeight ? toDisplayWeight(currentWeight.weight - firstWeight.weight, unit) : 0;
   const todayFoods = state.foods.filter((food) => food.date === today);
   const todayWorkouts = state.workouts.filter((workout) => workout.date === today);
+  const todayBurnEstimate = currentWeight
+    ? Math.round(sumWorkoutCalories(todayWorkouts, currentWeight.weight))
+    : null;
   const weekStart = shiftDate(today, -6);
   const weekWorkouts = state.workouts.filter((workout) => workout.date >= weekStart);
   const completedHabits = state.habits.filter((habit) => habit.completions[today]).length;
@@ -819,6 +883,7 @@ function buildModel(state) {
     todayFoodCount: todayFoods.length,
     todayWorkoutCount: todayWorkouts.length,
     todayWorkoutMinutes: sum(todayWorkouts, "duration"),
+    todayBurnEstimate,
     weekMinutes: sum(weekWorkouts, "duration"),
     completedHabits,
     habitCompletion: state.habits.length ? Math.round((completedHabits / state.habits.length) * 100) : 0,
@@ -1021,6 +1086,16 @@ function groupWorkoutTypes(workouts) {
     groups[workout.type].minutes += Number(workout.duration) || 0;
     return groups;
   }, {})).sort((a, b) => b.minutes - a.minutes);
+}
+
+function sumWorkoutCalories(workouts, weightInPounds) {
+  const weightKg = toDisplayWeight(weightInPounds, "kg");
+  return workouts.reduce((total, workout) => {
+    const typeMets = metTable[workout.type] || metTable.Other;
+    const met = typeMets[workout.intensity] || typeMets.Moderate;
+    const hours = (Number(workout.duration) || 0) / 60;
+    return total + met * weightKg * hours;
+  }, 0);
 }
 
 function roundMacro(value) {
