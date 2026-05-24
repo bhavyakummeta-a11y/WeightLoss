@@ -1,0 +1,17 @@
+{
+  "name": "JourneyFit",
+  "short_name": "JourneyFit",
+  "description": "Track weight, meals, workouts, and habits.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef8ff",
+  "theme_color": "#082f4e",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
