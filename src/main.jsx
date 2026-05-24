@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   Check,
   ChevronRight,
+  Crown,
   Dumbbell,
   FileDown,
   FileUp,
@@ -15,9 +16,14 @@ import {
   HeartPulse,
   Home,
   LogOut,
+  Lock,
+  Map,
   Plus,
   Scale,
+  Smile,
   Sparkles,
+  Star,
+  Trophy,
   Trash2,
   Utensils,
   Weight
@@ -70,6 +76,16 @@ const starterState = {
     waterTarget: 8,
     notificationsEnabled: false
   },
+  quest: {
+    themeId: "",
+    avatarId: "",
+    startKg: 68,
+    goalKg: 50,
+    rewardIntervalKg: 5,
+    rewards: {},
+    reflections: { before: "", now: "" },
+    mood: {}
+  },
   weights: [],
   foods: [],
   workouts: [],
@@ -82,11 +98,34 @@ const starterState = {
 
 const views = [
   { id: "dashboard", label: "Today", icon: Home },
+  { id: "quest", label: "Fit Quest", icon: Map },
   { id: "weight", label: "Weight", icon: Scale },
   { id: "food", label: "Food", icon: Utensils },
   { id: "workouts", label: "Training", icon: Dumbbell },
   { id: "habits", label: "Habits", icon: CalendarCheck }
 ];
+
+const questThemes = [
+  { id: "castle", name: "Princess castle journey", accent: "#f7b7d7", icon: "crown" },
+  { id: "space", name: "Space mission", accent: "#9cc9ff", icon: "rocket" },
+  { id: "forest", name: "Cozy forest trail", accent: "#9ed6aa", icon: "leaf" },
+  { id: "anime", name: "Anime-style adventure", accent: "#d6b5ff", icon: "spark" },
+  { id: "treasure", name: "Treasure hunt", accent: "#f5ce77", icon: "gem" },
+  { id: "gym", name: "Gym hero quest", accent: "#aee6ff", icon: "bolt" },
+  { id: "mermaid", name: "Ocean mermaid path", accent: "#78dce8", icon: "wave" },
+  { id: "kdrama", name: "K-drama glow-up journey", accent: "#ffb3b3", icon: "heart" },
+  { id: "farm", name: "Farm-to-fitness journey", accent: "#c6d982", icon: "sun" },
+  { id: "dragon", name: "Fantasy dragon quest", accent: "#ff9d73", icon: "dragon" }
+];
+
+const questAvatars = ["Wanderer", "Hero", "Dreamer", "Knight", "Star", "Captain"];
+
+const storyChapters = {
+  63: { title: "First Bridge", story: "You crossed the first bridge." },
+  58: { title: "Golden Market", story: "You reached the golden market." },
+  53: { title: "Castle Gate", story: "You entered the final castle gate." },
+  50: { title: "Crown Earned", story: "You earned the crown." }
+};
 
 const metTable = {
   Strength: { Easy: 3.5, Moderate: 5, Hard: 6 },
@@ -122,6 +161,10 @@ function App() {
             <p className="eyebrow">{formatLongDate(today)}</p>
             <h1>{activeView === "dashboard" ? "Your daily progress" : views.find((view) => view.id === activeView)?.label}</h1>
           </div>
+          <button className="fit-quest-button" type="button" onClick={() => setActiveView("quest")}>
+            <Sparkles size={18} />
+            Your Fit Quest
+          </button>
           <div className="top-actions">
             <AuthButton authState={authState} />
             <button className="icon-button text-button" type="button" onClick={() => exportData(state)}>
@@ -143,6 +186,7 @@ function App() {
         </header>
 
         {activeView === "dashboard" && <Dashboard model={model} state={state} update={update} />}
+        {activeView === "quest" && <QuestView state={state} update={update} model={model} />}
         {activeView === "weight" && <WeightView state={state} update={update} model={model} />}
         {activeView === "food" && <FoodView state={state} update={update} model={model} />}
         {activeView === "workouts" && <WorkoutView state={state} update={update} model={model} />}
@@ -316,6 +360,316 @@ function Dashboard({ model, state, update }) {
       </section>
     </div>
   );
+}
+
+function QuestView({ state, update, model }) {
+  const quest = state.quest || starterState.quest;
+  const theme = questThemes.find((item) => item.id === quest.themeId);
+  const avatar = quest.avatarId || questAvatars[0];
+  const mood = quest.mood?.[today] || { mood: "Focused", energy: 5 };
+  const [previewTheme, setPreviewTheme] = useState(null);
+
+  function chooseTheme(themeId) {
+    update((draft) => {
+      draft.quest ||= structuredClone(starterState.quest);
+      draft.quest.themeId = themeId;
+      draft.quest.avatarId ||= questAvatars[0];
+    });
+  }
+
+  function chooseAvatar(avatarId) {
+    update((draft) => {
+      draft.quest ||= structuredClone(starterState.quest);
+      draft.quest.avatarId = avatarId;
+    });
+  }
+
+  function updateReflection(key, value) {
+    update((draft) => {
+      draft.quest ||= structuredClone(starterState.quest);
+      draft.quest.reflections ||= { before: "", now: "" };
+      draft.quest.reflections[key] = value;
+    });
+  }
+
+  function updateMood(key, value) {
+    update((draft) => {
+      draft.quest ||= structuredClone(starterState.quest);
+      draft.quest.mood ||= {};
+      draft.quest.mood[today] ||= { mood: "Focused", energy: 5 };
+      draft.quest.mood[today][key] = value;
+    });
+  }
+
+  function updateQuestNumber(key, value) {
+    update((draft) => {
+      draft.quest ||= structuredClone(starterState.quest);
+      draft.quest[key] = Number(value) || "";
+    });
+  }
+
+  function updateReward(weightKg, value) {
+    update((draft) => {
+      draft.quest ||= structuredClone(starterState.quest);
+      draft.quest.rewards ||= {};
+      draft.quest.rewards[String(weightKg)] = value;
+    });
+  }
+
+  if (!theme) {
+    return (
+      <section className="quest-setup">
+        <div className="quest-setup-hero">
+          <p className="eyebrow">One-time setup</p>
+          <h2>Choose Your Journey Theme</h2>
+          <p>Your tracker becomes a little story path. Pick a vibe once and JourneyFit will remember it.</p>
+        </div>
+        <div className="quest-theme-grid">
+          {questThemes.map((item) => (
+            <button className="quest-theme-card" key={item.id} type="button" style={{ "--theme-accent": item.accent }} onClick={() => setPreviewTheme(item)}>
+              <span>{questIcon(item.icon)}</span>
+              <strong>{item.name}</strong>
+              <small>Preview quest</small>
+            </button>
+          ))}
+        </div>
+        <div className="quest-avatar-strip">
+          <span>Avatar</span>
+          {questAvatars.map((item) => (
+            <button className={avatar === item ? "active" : ""} key={item} type="button" onClick={() => chooseAvatar(item)}>
+              {item}
+            </button>
+          ))}
+        </div>
+        <QuestSettings quest={quest} updateQuestNumber={updateQuestNumber} />
+        {previewTheme && (
+          <QuestThemeModal
+            theme={previewTheme}
+            onClose={() => setPreviewTheme(null)}
+            onChoose={() => chooseTheme(previewTheme.id)}
+          />
+        )}
+      </section>
+    );
+  }
+
+  const finalUnlocked = model.questMilestones.at(-1)?.unlocked;
+  const currentMapIndex = Math.max(lastUnlockedIndex(model.questMilestones), 0);
+  const avatarPosition = model.questMilestones[currentMapIndex] || model.questStartNode;
+
+  return (
+    <div className={`quest-page quest-theme-${theme.id}`} style={{ "--quest-accent": theme.accent }}>
+      {finalUnlocked && <Confetti />}
+      <section className="quest-hero">
+        <div>
+          <p className="eyebrow">Your Fit Quest</p>
+          <h2>{theme.name}</h2>
+          <p>{avatar} is walking the path from first log to final crown.</p>
+        </div>
+        <div className="quest-hero-stats">
+          <strong>{model.currentWeight ? formatWeight(model.currentWeight.weight, model.weightUnit) : "--"}</strong>
+          <span>Current weight</span>
+        </div>
+      </section>
+
+      <section className="quest-stats-grid">
+        <QuestStat icon={Trophy} label="Rewards unlocked" value={`${model.questRewardCount}`} detail={`Every ${quest.rewardIntervalKg || 5} kg lost`} />
+        <QuestStat icon={Star} label="Weight streak" value={`${model.weightLogStreak}`} detail="Recent logging days" />
+        <QuestStat icon={Scale} label="Weekly average" value={model.weeklyAverageKg ? `${model.weeklyAverageKg.toFixed(1)} kg` : "--"} detail="Gentler than daily pressure" />
+        <QuestStat icon={Sparkles} label="Secret bonus" value={model.secretBonusUnlocked ? "Unlocked" : "Locked"} detail="Consistency reward" />
+      </section>
+
+      <section className="quest-settings-panel panel wide">
+        <PanelHeader title="Quest goals" detail="Customize your path spacing and final destination" />
+        <QuestSettings quest={quest} updateQuestNumber={updateQuestNumber} />
+      </section>
+
+      <section className="quest-path panel wide">
+        <PanelHeader title="Fit Quest Map" detail="Unlock nodes from your logged weight" />
+        <div className="quest-map-board">
+          <svg className="quest-map-path" viewBox="0 0 1000 620" preserveAspectRatio="none" aria-hidden="true">
+            <path className="quest-road-shadow" d={model.questPathD} />
+            <path className="quest-road" d={model.questPathD} />
+          </svg>
+          <div
+            className="quest-avatar-token"
+            style={{
+              left: `${avatarPosition.x}%`,
+              top: `${avatarPosition.y}%`
+            }}
+          >
+            {avatar.slice(0, 1)}
+          </div>
+          <div className="map-start-node" style={{ left: `${model.questStartNode.x}%`, top: `${model.questStartNode.y}%` }}>
+            <span>Start</span>
+            <strong>{model.questStartNode.weightKg}</strong>
+          </div>
+          {model.questMilestones.map((milestone, index) => (
+            <button
+              className={milestone.unlocked ? "map-node unlocked" : "map-node"}
+              key={`${milestone.weightKg}-${index}`}
+              type="button"
+              style={{ left: `${milestone.x}%`, top: `${milestone.y}%` }}
+              title={milestone.unlocked ? milestone.story : "Locked story chapter"}
+            >
+              <span>{milestone.unlocked ? <Crown size={15} /> : <Lock size={15} />}</span>
+              <strong>{milestone.weightKg}</strong>
+            </button>
+          ))}
+          <div className="quest-map-label">
+            <strong>{theme.name}</strong>
+            <span>{model.questRewardCount} rewards unlocked</span>
+          </div>
+        </div>
+        <div className="story-chapter-list">
+          {model.questMilestones.map((milestone, index) => (
+            <article className={milestone.unlocked ? "story-chip unlocked" : "story-chip"} key={`${milestone.title}-${index}`}>
+              <span>{milestone.weightKg} kg</span>
+              <strong>{milestone.title}</strong>
+              <p>{milestone.unlocked ? milestone.story : "Locked"}</p>
+              <label className="field reward-field">
+                Reward
+                <input value={quest.rewards?.[String(milestone.weightKg)] || ""} onChange={(event) => updateReward(milestone.weightKg, event.target.value)} placeholder="Add a personal reward" />
+              </label>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {finalUnlocked && (
+        <section className="goal-celebration">
+          <Crown size={30} />
+          <div>
+            <strong>Goal Celebration</strong>
+            <span>You reached 50 kg and earned the crown.</span>
+          </div>
+        </section>
+      )}
+
+      <section className="quest-journal-grid">
+        <div className="panel">
+          <PanelHeader title="Before vs now" detail="Reflection notes" />
+          <div className="reflection-grid">
+            <label className="field journal-field">
+              Before
+              <textarea value={quest.reflections?.before || ""} onChange={(event) => updateReflection("before", event.target.value)} placeholder="What did this feel like at the start?" />
+            </label>
+            <label className="field journal-field">
+              Now
+              <textarea value={quest.reflections?.now || ""} onChange={(event) => updateReflection("now", event.target.value)} placeholder="What feels different now?" />
+            </label>
+          </div>
+        </div>
+
+        <div className="panel">
+          <PanelHeader title="Mood + energy" detail="Today" />
+          <div className="mood-grid">
+            <Select label="Mood" value={mood.mood} onChange={(value) => updateMood("mood", value)} options={["Focused", "Happy", "Tired", "Stressed", "Proud", "Calm"]} />
+            <label className="field">
+              Energy
+              <input type="range" min="1" max="10" value={mood.energy} onChange={(event) => updateMood("energy", Number(event.target.value))} />
+            </label>
+            <div className="energy-readout"><Smile size={20} /> {mood.energy}/10</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function QuestStat({ icon: Icon, label, value, detail }) {
+  return (
+    <article className="quest-stat">
+      <Icon size={20} />
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
+  );
+}
+
+function QuestThemeModal({ theme, onClose, onChoose }) {
+  return (
+    <div className="quest-modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className={`quest-theme-modal quest-theme-${theme.id}`} style={{ "--quest-accent": theme.accent }} role="dialog" aria-modal="true" aria-label={theme.name} onMouseDown={(event) => event.stopPropagation()}>
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Close theme preview">×</button>
+        <div className="theme-preview-art">
+          <div className="preview-sky" />
+          <svg viewBox="0 0 520 360" aria-hidden="true">
+            <path className="preview-road" d="M70 300 C 155 245, 105 190, 220 166 C 342 140, 272 83, 430 58" />
+          </svg>
+          {[0, 1, 2, 3].map((index) => (
+            <span className="preview-node" key={index} style={{ "--node": index }}>
+              {index === 3 ? questIcon(theme.icon) : index + 1}
+            </span>
+          ))}
+          <div className="preview-character">{questIcon(theme.icon)}</div>
+        </div>
+        <div className="theme-preview-copy">
+          <p className="eyebrow">Quest preview</p>
+          <h2>{theme.name}</h2>
+          <p>{themePreviewText(theme.id)}</p>
+          <div className="preview-chips">
+            <span>Custom path</span>
+            <span>Story rewards</span>
+            <span>Milestone unlocks</span>
+          </div>
+          <div className="modal-actions">
+            <button className="text-button icon-button" type="button" onClick={onClose}>Close</button>
+            <button className="primary-button" type="button" onClick={onChoose}>Choose this theme</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function themePreviewText(themeId) {
+  return {
+    castle: "A pastel royal road with crowns, gates, and a final celebration at the castle.",
+    space: "A starry mission path through planets, checkpoints, and a final launch moment.",
+    forest: "A soft trail of stepping stones, trees, cozy rewards, and quiet progress.",
+    anime: "A bright adventure route with sparkle nodes and dramatic chapter unlocks.",
+    treasure: "A parchment-style hunt with coins, secret rewards, and a final treasure chest.",
+    gym: "A hero training route with badges, medals, and power-up milestones.",
+    mermaid: "An ocean path of pearls, waves, shells, and a shimmering final crown.",
+    kdrama: "A glow-up storyline with city lights, hearts, and cinematic milestones.",
+    farm: "A sunny farm road with fields, market stops, and steady harvest rewards.",
+    dragon: "A fantasy trail through gates, fire-lit checkpoints, and a dragon-scale finale."
+  }[themeId] || "A custom quest path with rewards, story chapters, and milestone unlocks.";
+}
+
+function QuestSettings({ quest, updateQuestNumber }) {
+  return (
+    <div className="quest-settings-grid">
+      <Input label="Start weight" type="number" value={quest.startKg || ""} onChange={(value) => updateQuestNumber("startKg", value)} suffix="kg" />
+      <Input label="Goal weight" type="number" value={quest.goalKg || ""} onChange={(value) => updateQuestNumber("goalKg", value)} suffix="kg" />
+      <Input label="Reward every" type="number" value={quest.rewardIntervalKg || ""} onChange={(value) => updateQuestNumber("rewardIntervalKg", value)} suffix="kg" />
+    </div>
+  );
+}
+
+function Confetti() {
+  return (
+    <div className="quest-confetti" aria-hidden="true">
+      {Array.from({ length: 16 }, (_, index) => <i key={index} style={{ "--i": index }} />)}
+    </div>
+  );
+}
+
+function questIcon(icon) {
+  return {
+    crown: "♛",
+    rocket: "✦",
+    leaf: "♧",
+    spark: "✧",
+    gem: "◆",
+    bolt: "↯",
+    wave: "≈",
+    heart: "♡",
+    sun: "☼",
+    dragon: "♜"
+  }[icon] || "✦";
 }
 
 function WeightView({ state, update, model }) {
@@ -873,6 +1227,28 @@ function buildModel(state) {
     calories: sum(todayFoods.filter((food) => food.meal === meal), "calories")
   }));
   const weekWorkoutTypes = groupWorkoutTypes(weekWorkouts);
+  const questSettings = {
+    ...starterState.quest,
+    ...(state.quest || {})
+  };
+  const configuredStartKg = Number(questSettings.startKg) || 68;
+  const configuredGoalKg = Number(questSettings.goalKg) || 50;
+  const rewardIntervalKg = Math.max(Number(questSettings.rewardIntervalKg) || 5, 0.5);
+  const startKg = configuredStartKg;
+  const currentKg = currentWeight ? toDisplayWeight(currentWeight.weight, "kg") : null;
+  const questMilestoneStatus = buildQuestMilestones(configuredStartKg, configuredGoalKg, rewardIntervalKg, currentKg);
+  const questStartNode = { weightKg: roundWeight(configuredStartKg), x: 50, y: 88 };
+  const questRewardCount = questMilestoneStatus.filter((milestone) => milestone.unlocked).length;
+  const questPathD = buildQuestPath([questStartNode, ...questMilestoneStatus]);
+  const recentWeightLogs = sortedWeights.filter((weight) => weight.date >= shiftDate(today, -6));
+  const weeklyAverageKg = recentWeightLogs.length
+    ? recentWeightLogs.reduce((total, weight) => total + toDisplayWeight(weight.weight, "kg"), 0) / recentWeightLogs.length
+    : null;
+  const weightLogStreak = calculateWeightLogStreak(sortedWeights);
+  const secretBonusUnlocked = weightLogStreak >= 7 || state.habits.some((habit) => {
+    const days = Array.from({ length: 7 }, (_, index) => shiftDate(today, index - 6));
+    return days.every((day) => habit.completions?.[day]);
+  });
 
   return {
     timeline,
@@ -891,6 +1267,13 @@ function buildModel(state) {
     mealBreakdown,
     weekWorkoutTypes,
     topWeekWorkoutMinutes: Math.max(...weekWorkoutTypes.map((item) => item.minutes), 1),
+    questRewardCount,
+    questMilestones: questMilestoneStatus,
+    questStartNode,
+    questPathD,
+    weeklyAverageKg,
+    weightLogStreak,
+    secretBonusUnlocked,
     weightSummary: currentWeight
       ? `${change <= 0 ? "" : "+"}${change.toFixed(1)} ${unit} from your first logged weight`
       : "Log your first weight to start the trend"
@@ -1076,8 +1459,103 @@ function mergeState(savedState = {}) {
     settings: {
       ...starterState.settings,
       ...(savedState.settings || {})
+    },
+    quest: {
+      ...starterState.quest,
+      ...(savedState.quest || {}),
+      reflections: {
+        ...starterState.quest.reflections,
+        ...(savedState.quest?.reflections || {})
+      },
+      mood: {
+        ...starterState.quest.mood,
+        ...(savedState.quest?.mood || {})
+      },
+      rewards: {
+        ...starterState.quest.rewards,
+        ...(savedState.quest?.rewards || {})
+      }
     }
   };
+}
+
+function calculateWeightLogStreak(weights) {
+  const dates = new Set(weights.map((weight) => weight.date));
+  let streak = 0;
+  let cursor = today;
+
+  while (dates.has(cursor)) {
+    streak += 1;
+    cursor = shiftDate(cursor, -1);
+  }
+
+  return streak;
+}
+
+function buildQuestMilestones(startKg, goalKg, intervalKg, currentKg) {
+  const start = Number(startKg) || 68;
+  const goal = Number(goalKg) || 50;
+  const interval = Math.max(Number(intervalKg) || 5, 0.5);
+  const isLoss = goal < start;
+  const milestones = [];
+  let next = isLoss ? start - interval : start + interval;
+  let guard = 0;
+
+  while ((isLoss ? next > goal : next < goal) && guard < 40) {
+    milestones.push(roundWeight(next));
+    next = isLoss ? next - interval : next + interval;
+    guard += 1;
+  }
+
+  if (!milestones.includes(roundWeight(goal))) milestones.push(roundWeight(goal));
+
+  return milestones.map((weightKg, index) => {
+    const chapter = storyChapters[Math.round(weightKg)] || {
+      title: index === milestones.length - 1 ? "Goal Celebration" : `Reward ${index + 1}`,
+      story: index === milestones.length - 1 ? "You reached your final destination." : "You unlocked a new reward on your path."
+    };
+    const position = mapNodePosition(index, milestones.length);
+    return {
+      ...chapter,
+      weightKg,
+      x: position.x,
+      y: position.y,
+      unlocked: Boolean(currentKg && (isLoss ? currentKg <= weightKg : currentKg >= weightKg))
+    };
+  });
+}
+
+function lastUnlockedIndex(milestones) {
+  for (let index = milestones.length - 1; index >= 0; index -= 1) {
+    if (milestones[index].unlocked) return index;
+  }
+  return -1;
+}
+
+function mapNodePosition(index, total) {
+  if (total <= 1) return { x: 50, y: 50 };
+  const progress = index / (total - 1);
+  const y = 86 - progress * 72;
+  const x = 50 + Math.sin(progress * Math.PI * 3.1) * 27 + Math.sin(progress * Math.PI * 8) * 5;
+  return {
+    x: Math.max(10, Math.min(90, Math.round(x * 10) / 10)),
+    y: Math.max(10, Math.min(88, Math.round(y * 10) / 10))
+  };
+}
+
+function buildQuestPath(milestones) {
+  if (!milestones.length) return "M 500 530 C 500 420 500 260 500 90";
+  const points = milestones.map((milestone) => ({ x: milestone.x * 10, y: milestone.y * 6.2 }));
+  const [first, ...rest] = points;
+  return rest.reduce((path, point, index) => {
+    const previous = points[index];
+    const controlY = (previous.y + point.y) / 2;
+    return `${path} C ${previous.x} ${controlY}, ${point.x} ${controlY}, ${point.x} ${point.y}`;
+  }, `M ${first.x} ${first.y}`);
+}
+
+function roundWeight(value) {
+  return Math.round(Number(value) * 10) / 10;
 }
 
 function groupWorkoutTypes(workouts) {
